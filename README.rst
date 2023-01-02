@@ -6,6 +6,7 @@ A Forth_ system implemented in `Yeti's Simple Language`_. It's based on
 the `Forth 2012 standard`_, but it doesn't adhere to it in some places so if you
 want to use it make sure to check out the glossary (not yet existent).
 
+.. All hyperlink targets can be found at the bottom of the document.
 
 -------
  Usage
@@ -39,7 +40,7 @@ works, but it's not useful unless you define more ``code`` words.
 -------------------
 
 **PLEASE** fix any spelling, stylistic or grammar mistakes you find in the docs
-(which for now includes just this ``README.md``). I will accept any and all doc
+(which for now includes just this ``README.rst``). I will accept any and all doc
 fixing pull requests with minor scrutiny.
 
 If you want something or implemented open an issue so we can talk about it and
@@ -49,9 +50,7 @@ on `Esolangs Discord`_, I'm ``olus2000#5728``.
 :wq
 
 
-------------
- Hyperlinks
-------------
+.. Hyperlinks:
 
 .. _Forth: https://en.wikipedia.org/wiki/Forth_(programming_language)
 .. _Yeti's Simple Language: https://github.com/yeti0904/ysl
