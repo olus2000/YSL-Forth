@@ -16,7 +16,7 @@ var rp = -1
 
 
 # Input buffer
-file.read "prelude.fs"
+file.read "kernel.fs"
 var input-buffer c return
 var >in = 0
 size input-buffer
