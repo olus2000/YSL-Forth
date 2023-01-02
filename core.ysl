@@ -1,0 +1,668 @@
+# temporary variables for use inside functions:
+# i, j, n
+
+
+# Classic Forth registers
+var w = 0
+var x = 0
+var t = 0
+var ip = 0
+
+# Empty Forth stacks
+var d-stack = ""
+var dp = -1
+var r-stack = ""
+var rp = -1
+
+
+# Input buffer
+file.read "prelude.fs"
+var input-buffer c return
+var >in = 0
+size input-buffer
+var input-buffer-size f return
+
+# Other mapped regions
+
+# Dictionary
+string_array n "." "bye" "," "+" "[" "]" ":" ";" "create" "code" 
+var dictionary c return
+var dict-refs  = 0 1 4 5 6  7 9 10 11 12
+var immediates = 1 1 1 1 -1 1 1 -1 1  1
+string_array l dictionary
+var dictionary-pointer f return
+var dictionary-pointer - 1
+
+# Other Forth variables
+var base = 10
+var next-return = 0
+var state = 0
+var here = *code-end
+var source = -256
+
+# Memory locations
+var YSL-action-from-YSL-helper-addr = 2
+var lit-action = 13
+var exit-action = 8
+
+# Memory
+#         0    1     2 3                                    4  5  6  7  8     9      10 11      12    13
+var mem = *dot *halt 3 *execute-YSL-action-from-YSL-cleanup *, *+ *[ *] *exit *colon *; *create *code *lit
+size mem
+var mp f return
+var mp - 1
+goto *quit
+
+
+# Basic Forth actions
+next:
+#   print "ToS: "
+#   print $t
+#   print " size: "
+#   size d-stack
+#   var w f return
+#   print $w
+#   print " IP: "
+#   println $ip
+
+#   cmp $next-return 1
+#   goto_if *.return
+    var w f mem $ip
+    var ip + 1
+    var x f mem $w
+    var w + 1
+    goto $x
+ 
+#   .return:
+#   return
+
+
+enter:
+    var r-stack a $ip
+    var rp + 1
+    var ip = $w
+    goto *next
+
+
+exit:
+    var ip f r-stack $rp
+    var r-stack r $rp 1
+    var rp - 1
+    goto *next
+
+
+dovar:
+    var d-stack a $t
+    var dp + 1
+    var t = $w
+    goto *next
+
+
+doconst:
+    var d-stack a $t
+    var dp + 1
+    var t f mem $w
+    goto *next
+
+
+dodoes:
+    var r-stack a $ip
+    var rp + 1
+    var ip f mem $w
+    var w + 1
+    var d-stack a $t
+    var dp + 1
+    var t = $w
+    goto *next
+
+
+lit:
+    var d-stack a $t
+    var dp + 1
+    var t f mem $ip
+    var ip + 1
+    goto *next
+
+
+# Memory access
+@:
+    gt $t mp
+    goto_if *.out-of-bounds
+    lt $t 0
+    goto_if *.mapped
+    var t f mem $t
+    goto *next
+    # Mapped @
+    .mapped:
+        lt $t -256
+        goto_if *.out-of-bounds
+        var t + 256
+        var t f input-buffer $t
+        goto *next
+    # Default out of bounds @
+    .out-of-bounds:
+        var t = 0
+        goto *next
+
+
+!:
+#   gt $t mp
+#   gosub_if *!-expand-memory
+    lt $t 0
+    goto_if *!-mapped
+    var x f d-stack $dp
+    var dp - 1
+    var mem s $t $x
+    var t f d-stack $dp
+    var d-stack r $dp 2
+    var dp - 1
+    goto *next
+!-expand-memory:
+    set_size mem $t
+    var mp = $t
+    return
+# Mapped !
+!-mapped:
+    return
+
+
++!:
+    var x f d-stack $dp
+    var dp - 1
+    var w f mem $t
+    var x + $w
+    var mem s $t $x
+    var t f d-stack $dp
+    var d-stack r $dp 2
+    var dp - 1
+    goto *next
+
+
+# ( x -- )
+,:
+    var mem a $t
+    var mp + 1
+    var t f d-stack $dp
+    var d-stack r $dp 1
+    var dp - 1
+    goto *next
+
+
+# Maths
++:
+    var x f d-stack $dp
+#   print $t
+#   print " + "
+#   print $x
+#   print " = "
+    var t + $x
+#   println $t
+    var d-stack r $dp 1
+    var dp - 1
+    goto *next
+
+
+0=:
+    cmp 0 $t
+    goto_if *0=-true
+    var t = 1
+0=-true:
+    var t - 1
+    goto *next
+
+
+# Stack shuffling
+dup:
+    var d-stack a $t
+    var dp + 1
+    goto *next
+
+
+swap:
+    var x f d-stack $dp
+    var d-stack s $dp $t
+    var t = $x
+    goto *next
+
+
+over:
+    var d-stack a $t
+    var t f d-stack $dp
+    var dp + 1
+    goto *next
+
+
+rot:
+    var x f d-stack $dp
+    var d-stack s $dp $t
+    var dp - 1
+    var t f d-stack $dp
+    var d-stack s $dp $x
+    var dp + 1
+    goto *next
+
+
+# I/O
+dot:
+    print " "
+    print $t
+    var t f d-stack $dp
+    var d-stack r $dp 1
+    var dp - 1
+    goto *next
+
+
+# -- input-buffer >in
+_refill:
+#   print "Input pointer at "
+#   print $>in
+#   print " for the buffer of size "
+#   println $input-buffer-size
+#   println "Refilling buffer..."
+    input
+    var input-buffer c return
+    var >in = 0
+    size input-buffer
+    var input-buffer-size f return
+#   print "Refilled with "
+#   print $input-buffer-size
+#   println " chars"
+    return 1
+
+
+refill:
+    var d-stack a $t
+    var dp + 1
+    gosub *_refill
+    var t f return
+    goto *next
+
+
+# Parsing
+parse:
+    
+
+
+# c-addr -- ext (1 | -1) | c-addr 0
+find:
+    var word = ""
+    var word-addr = $t
+    var couner = $word-addr
+    var x = *@
+    gosub *execute-YSL-action-from-YSL
+    var word-length = $t
+    lt $word-length 1
+    goto *.no-copy-word
+    .copy-word-loop:
+        var counter + 1
+        var t = $counter
+        var x = *@
+        gosub *execute-YSL-action-from-YSL
+        var word a $t
+        var word-length - 1
+        gt $word-length 0
+        goto *.copy-word-loop
+    .no-copy-word:
+    gosub *_find
+    var t f return
+    cmp $t 0
+    goto_if *fail
+        var d-stack a $x
+        var dp + 1
+        var t = 1
+        goto *next
+    .fail:
+        var d-stack a $word-addr
+        var dp + 1
+        var t = 0
+        goto *next
+
+
+_find:
+    var x = $dictionary-pointer
+    .loop:
+#       print "x = "
+#       println $x
+        string_array g dictionary $x
+        var n c return
+        gosub *cmp-string
+        goto_if *.success
+        var x - 1
+        gt $x -1
+        goto_if *.loop
+        return 0
+    .success:
+        var n f immediates $x
+        var x f dict-refs $x
+        return $n
+  
+
+# Compilation
+[:
+    var state = 0
+    goto *next
+
+]:
+    var state = 1
+    goto *next
+
+
+create:
+    gosub *parse-word
+    string_array a dictionary !word
+    var immediates a 1
+    var x = $mp
+    var x + 1
+    var dict-refs a $x
+    var dictionary-pointer + 1
+    goto *next
+
+
+colon:
+    gosub *parse-word
+    string_array a dictionary !word
+    var immediates a 1
+    var mem a *enter
+    var mp + 1
+    var dict-refs a $mp
+    var state = 1
+    goto *next
+
+
+;:
+    var mem a $exit-action
+    var mp + 1
+    var dictionary-pointer + 1
+    var state = 0
+    goto *next
+
+
+code:
+#   print "dp before: "
+#   println $dictionary-pointer
+    var x = *create
+    gosub *execute-YSL-action-from-YSL
+#   print "dp after: "
+#   println $dictionary-pointer
+    var mem a $here
+    var mp + 1
+#   print "\$here is at "
+#   println $here
+
+    .loop:
+        # if input is over refill
+        lt $>in $input-buffer-size
+        goto_if *.no-refill
+            gosub *_refill
+            goto *.loop
+        .no-refill:
+        # check if starts with colon
+        var x f input-buffer $>in
+        cmp $x &;
+        goto_if *.end
+        # parse until endl or end of input
+        # store parsed code as string
+        var line = ""
+        .parse-loop:
+            var line a $x
+            var >in + 1
+            cmp $>in $input-buffer-size
+            goto_if *.parse-end
+            var x f input-buffer $>in
+            cmp $x 10
+            goto_if *.parse-newline-end
+            goto *.parse-loop
+        .parse-newline-end:
+        var >in + 1
+        .parse-end:
+        # compile parsed code into program
+#       println !line
+        ysl.write_line $here !line
+        var here + 1
+        goto *.loop
+    .end:
+    var >in + 1
+    goto *next
+
+
+# YSL-Forth interface
+execute-YSL-subroutine-from-forth:
+    var x = $t
+    var t f d-stack $dp
+    var d-stack r $dp 1
+    var dp - 1
+    gosub $x
+    goto *next
+
+
+execute-YSL-action-from-forth:
+    var x = $t
+    var t f d-stack $dp
+    var d-stack r $dp 1
+    var dp - 1
+    goto $x
+
+
+execute-YSL-action-from-YSL:
+    var r-stack a $ip
+    var rp + 1
+    var ip = $YSL-action-from-YSL-helper-addr
+    goto $x
+execute-YSL-action-from-YSL-cleanup:
+    var ip f r-stack $rp
+    var r-stack r $rp 1
+    var rp - 1
+    return
+
+
+execute-Forth-word-from-YSL:
+    var w = $x
+    var x f mem $w
+    var w + 1
+    gosub *execute-YSL-action-from-YSL
+    return
+
+
+# Miscellaneoutousoutoeoosoeuusus
+halt:
+    exit
+
+
+# Basic interpreter
+
+# 1. Reload the input buffer
+# 2. Until the buffer is consumed:
+#    1. Parse a word
+#    2. Find the word in the dictionary
+#    3. If the word was in the dictionary
+#       1. Execute the word
+#    4. Else
+#       1. Parse it as a number and push
+#    5. Repeat
+
+
+quit:
+        cmp $>in $input-buffer-size
+        goto_if *.refill
+        gosub *parse-word
+        gosub *_find
+        var found f return
+#       print "found = "
+#       println $found
+        cmp $found 0
+        goto_if *.number
+        cmp $state 0
+        goto_if *.execute
+        cmp $found -1
+        goto_if *.execute
+        gosub *.compile
+        goto *quit
+    .compile:
+        var mem a $x
+        var mp + 1
+        return
+    .number:
+        gosub *parse-number
+        cmp $state 0
+        goto_if *.push-number
+        var tmp = $x
+        var x = $lit-action
+        gosub *.compile
+        var x = $tmp
+        gosub *.compile
+        goto *quit
+    .push-number:
+        var d-stack a $t
+        var dp + 1
+        var t = $x
+        goto *quit
+    .execute:
+#   print "Executing word "
+#   println !w
+#       print "Executing word at "
+#       println $x
+        gosub *execute-Forth-word-from-YSL
+        goto *quit
+    .refill:
+        cmp $state 1
+        goto_if *.no-ok
+        println " ok."
+        .no-ok:
+        gosub *_refill
+        goto *quit
+
+
+
+# input-buffer input-buffer-size >in -- word:w
+parse-word:
+    gosub *parse-whitespace
+    gosub *parse-non-whitespace
+    return
+
+
+# input-buffer input-buffer-size >in --
+parse-whitespace:
+    cmp $>in $input-buffer-size
+    goto_if *parse-whitespace-end
+    var i f input-buffer $>in
+    lt $i 33
+    goto_if *parse-whitespace-continue
+parse-whitespace-end:
+    return
+parse-whitespace-continue:
+    var >in + 1
+    goto *parse-whitespace
+
+
+# input-buffer input-buffer-size >in -- word:w
+parse-non-whitespace:
+    var word = ""
+parse-non-whitespace-loop:
+    cmp $>in $input-buffer-size
+    goto_if *parse-non-whitespace-end
+    var i f input-buffer $>in
+    var >in + 1
+    lt $i 33
+    goto_if *parse-non-whitespace-end
+    var word a $i
+    goto *parse-non-whitespace-loop
+parse-non-whitespace-end:
+    return
+
+
+# word:word word:n -- same?
+cmp-string:
+    size word
+    var i f return
+    size n
+    var j f return
+    cmp $i $j
+    goto_if *.same-len
+    return 0
+.same-len:
+    gt $i 0
+    goto_if *.not-empty
+    return 1
+.not-empty:
+    var i - 1
+    var j f word $i
+    var k f n $i
+    cmp $j $k
+    goto_if *.same-char
+    return 0
+.same-char:
+    gt $i 0
+    goto_if *.not-empty
+    return 1
+    
+
+# word:word -- num:t
+parse-number:
+    var x = 0
+    var i = 1
+    var tmp-base = $base
+    var base = 10
+    cmp $word &#
+    goto_if *.sign
+    var base = 16
+    cmp $word &$
+    goto_if *.sign
+    var base = 2
+    cmp $word &%
+    goto_if *.sign
+    var base = $tmp-base
+    cmp $word &'
+    goto_if *.charnum
+    var i - 1
+.sign:
+    var max-digit = $base
+    var max-digit - 1
+    var negative = 1
+    var j f word $i
+    var i + 1
+    cmp $j &-
+    goto_if *.negative
+    var i - 1
+    var negative = 0
+.negative:
+    size word
+    var n f return
+    var n - 1
+    gt $i $n
+    goto_if *.end
+    var n + 1
+    .parsing-loop:
+        var j f word $i
+        lt $j &a
+        goto_if *.not-small-letters
+        var j - 32
+        .not-small-letters:
+        lt $j &A
+        goto_if *.not-big-letters
+        var j - 17
+        .not-big-letters:
+        lt $j &0
+        goto_if *.not-digits
+        var j - &0
+        .not-digits:
+        lt $j 0
+        goto_if *.end
+        gt $j $max-digit
+        goto_if *.end
+        var x * $base
+        var x + $j
+        var i + 1
+        lt $i $n
+        goto_if *.parsing-loop
+    .end:
+    var base = $tmp-base
+    lt $negative 1
+    goto_if *.nonnegative
+        var x * -1
+    .nonnegative:
+    return
+.charnum:
+    var x f word 1
+    return
+
+code-end:
