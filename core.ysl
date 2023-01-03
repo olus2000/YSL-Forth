@@ -16,29 +16,44 @@ var rp = -1
 
 
 # Input buffer
-file.read "kernel.fs"
-var input-buffer c return
+var input-buffer = ""
 var >in = 0
-size input-buffer
-var input-buffer-size f return
+var input-buffer-size = 0
 
-# Other mapped regions
+# File interface
+file.read "kernel.fs"
+var current-file c return
+size current-file
+var current-file-size f return
+# YSL doesn't allow empty strings in string_array for now
+string_array n "This is the bottom. There's nothing else. Turn back."
+var file-stack c return
+string_array l file-stack
+var file-stack-pointer f return
+var file-stack-pointer - 1
+
+
+# Memory mapping addresses
+var file-buffer-offset = -1048576
+var input-buffer-offset = -256
+var input-buffer-offset + $file-buffer-offset
 
 # Dictionary
-string_array n "." "bye" "," "+" "[" "]" ":" ";" "create" "code" 
+string_array n  "." "bye" "," "+" "[" "]" ":" ";" "create" "code" 
 var dictionary c return
-var dict-refs  = 0 1 4 5 6  7 9 10 11 12
-var immediates = 1 1 1 1 -1 1 1 -1 1  1
+var dict-refs  = 0   1     4   5   6   7   9   10  11       12
+var immediates = 1   1     1   1  -1   1   1  -1   1        1
 string_array l dictionary
 var dictionary-pointer f return
 var dictionary-pointer - 1
 
 # Other Forth variables
 var base = 10
-var next-return = 0
 var state = 0
 var here = *code-end
-var source = -256
+var source = $file-buffer-offset
+var source-size = $current-file-size
+var source-id = -1
 
 # Memory locations
 var YSL-action-from-YSL-helper-addr = 2
@@ -51,6 +66,17 @@ var mem = *dot *halt 3 *execute-YSL-action-from-YSL-cleanup *, *+ *[ *] *exit *c
 size mem
 var mp f return
 var mp - 1
+
+# Startup
+var x = *quit
+gosub *execute-YSL-action-from-YSL
+var x = *drop-file
+gosub *execute-YSL-action-from-YSL
+# println "Setting sauce to input"
+var source = $input-buffer-offset
+var source-size = $input-buffer-size
+var >in = $source-size
+var source-id = 0
 goto *quit
 
 
@@ -65,17 +91,12 @@ next:
 #   print " IP: "
 #   println $ip
 
-#   cmp $next-return 1
-#   goto_if *.return
     var w f mem $ip
     var ip + 1
     var x f mem $w
     var w + 1
     goto $x
  
-#   .return:
-#   return
-
 
 enter:
     var r-stack a $ip
@@ -126,23 +147,41 @@ lit:
 
 # Memory access
 @:
-    gt $t mp
-    goto_if *.out-of-bounds
-    lt $t 0
-    goto_if *.mapped
-    var t f mem $t
+    var x = $t
+    gosub *_@
+    var t f return
     goto *next
+
+
+_@:
+#   print "Getting value at "
+#   println $x
+    gt $x $mp
+    goto_if *.out-of-bounds
+    lt $x 0
+    goto_if *.mapped
+#   println "It's unmapped"
+    var x f mem $x
+    return $x
     # Mapped @
     .mapped:
-        lt $t -256
+        lt $x $file-buffer-offset
+        goto_if *.input-buffer
+#       println "It's file buffer"
+        var x - $file-buffer-offset
+        var x f current-file $x
+        return $x
+    .input-buffer:
+        lt $x $input-buffer-offset
         goto_if *.out-of-bounds
-        var t + 256
-        var t f input-buffer $t
-        goto *next
+#       println "It's input buffer"
+        var x - $input-buffer-offset
+        var x f input-buffer $x
+        return $x
     # Default out of bounds @
     .out-of-bounds:
-        var t = 0
-        goto *next
+#       println "It's out of bounds"
+        return 0
 
 
 !:
@@ -259,11 +298,17 @@ _refill:
 #   print " for the buffer of size "
 #   println $input-buffer-size
 #   println "Refilling buffer..."
+    cmp $source-id 0
+    goto_if *.actually-refill
+    return 0
+    .actually-refill:
     input
     var input-buffer c return
+    var input-buffer a 10
     var >in = 0
     size input-buffer
     var input-buffer-size f return
+    var source-size = $input-buffer-size
 #   print "Refilled with "
 #   print $input-buffer-size
 #   println " chars"
@@ -275,6 +320,16 @@ refill:
     var dp + 1
     gosub *_refill
     var t f return
+    goto *next
+
+
+drop-file:
+    string_array g file-stack $file-stack-pointer
+    var current-file f return
+    string_array r file-stack $file-stack-pointer
+    var file-stack-pointer - 1
+    size current-file
+    var current-file-size f return
     goto *next
 
 
@@ -306,7 +361,7 @@ find:
     gosub *_find
     var t f return
     cmp $t 0
-    goto_if *fail
+    goto_if *.fail
         var d-stack a $x
         var dp + 1
         var t = 1
@@ -335,7 +390,7 @@ _find:
         var n f immediates $x
         var x f dict-refs $x
         return $n
-  
+
 
 # Compilation
 [:
@@ -347,7 +402,7 @@ _find:
     goto *next
 
 
-create:
+define:
     gosub *parse-word
     string_array a dictionary !word
     var immediates a 1
@@ -355,17 +410,22 @@ create:
     var x + 1
     var dict-refs a $x
     var dictionary-pointer + 1
+    return
+
+
+create:
+    gosub *define
+    var mem a *dovar
+    var mp + 1
     goto *next
 
 
 colon:
-    gosub *parse-word
-    string_array a dictionary !word
-    var immediates a 1
+    gosub *define
     var mem a *enter
     var mp + 1
-    var dict-refs a $mp
     var state = 1
+    var dictionary-pointer - 1
     goto *next
 
 
@@ -380,24 +440,33 @@ colon:
 code:
 #   print "dp before: "
 #   println $dictionary-pointer
-    var x = *create
-    gosub *execute-YSL-action-from-YSL
+    gosub *define
 #   print "dp after: "
 #   println $dictionary-pointer
     var mem a $here
     var mp + 1
 #   print "\$here is at "
 #   println $here
+    var addr = $source
+    var addr + $>in
 
     .loop:
         # if input is over refill
-        lt $>in $input-buffer-size
+        lt $>in $source-size
         goto_if *.no-refill
+            cmp $source-id 0
+            goto_if *.actually-refill
+            goto *next
+            .actually-refill:
             gosub *_refill
+            var addr = $source
+            var addr + $>in
             goto *.loop
         .no-refill:
         # check if starts with colon
-        var x f input-buffer $>in
+        var x = $addr
+        gosub *_@
+        var x f return
         cmp $x &;
         goto_if *.end
         # parse until endl or end of input
@@ -406,14 +475,18 @@ code:
         .parse-loop:
             var line a $x
             var >in + 1
-            cmp $>in $input-buffer-size
+            var addr + 1
+            cmp $>in $source-size
             goto_if *.parse-end
-            var x f input-buffer $>in
+            var x = $addr
+            gosub *_@
+            var x f return
             cmp $x 10
             goto_if *.parse-newline-end
             goto *.parse-loop
         .parse-newline-end:
         var >in + 1
+        var addr + 1
         .parse-end:
         # compile parsed code into program
 #       println !line
@@ -468,21 +541,9 @@ halt:
     exit
 
 
-# Basic interpreter
-
-# 1. Reload the input buffer
-# 2. Until the buffer is consumed:
-#    1. Parse a word
-#    2. Find the word in the dictionary
-#    3. If the word was in the dictionary
-#       1. Execute the word
-#    4. Else
-#       1. Parse it as a number and push
-#    5. Repeat
-
-
+# Source code interpreter & compiler
 quit:
-        cmp $>in $input-buffer-size
+        cmp $>in $source-size
         goto_if *.refill
         gosub *parse-word
         gosub *_find
@@ -524,11 +585,20 @@ quit:
         gosub *execute-Forth-word-from-YSL
         goto *quit
     .refill:
+        cmp $source-id 0
+        goto_if *.actually-refill
+#       println "Exiting interpretation of string"
+        goto *next
+    .actually-refill:
         cmp $state 1
         goto_if *.no-ok
         println " ok."
         .no-ok:
         gosub *_refill
+        goto_if *.successful-refill
+#       println "Unsuccessfull refill!"
+        error
+        .successful-refill:
         goto *quit
 
 
@@ -537,36 +607,60 @@ quit:
 parse-word:
     gosub *parse-whitespace
     gosub *parse-non-whitespace
+#   print "Parsed \""
+#   print !word
+#   println "\""
     return
 
 
-# input-buffer input-buffer-size >in --
+# >in --
 parse-whitespace:
-    cmp $>in $input-buffer-size
-    goto_if *parse-whitespace-end
-    var i f input-buffer $>in
-    lt $i 33
-    goto_if *parse-whitespace-continue
-parse-whitespace-end:
-    return
-parse-whitespace-continue:
+    var d-stack a $t
+    var dp + 1
+    var addr = $source
+    var addr + $>in
+.loop:
+    cmp $>in $source-size
+    goto_if *.end
+    var t = $addr
+    var x = *@
+    gosub *execute-YSL-action-from-YSL
+    gt $t 32
+    goto_if *.end
     var >in + 1
-    goto *parse-whitespace
+    var addr + 1
+    goto *.loop
+.end:
+    var t f d-stack $dp
+    var d-stack r $dp 1
+    var dp - 1
+    return
 
 
-# input-buffer input-buffer-size >in -- word:w
+# >in -- word
 parse-non-whitespace:
     var word = ""
-parse-non-whitespace-loop:
-    cmp $>in $input-buffer-size
-    goto_if *parse-non-whitespace-end
-    var i f input-buffer $>in
+    var d-stack a $t
+    var dp + 1
+    var addr = $source
+    var addr + $>in
+.loop:
+    cmp $>in $source-size
+    goto_if *.end
+    var t = $addr
+#   println "Calling @..."
+    var x = *@
+    gosub *execute-YSL-action-from-YSL
     var >in + 1
-    lt $i 33
-    goto_if *parse-non-whitespace-end
-    var word a $i
-    goto *parse-non-whitespace-loop
-parse-non-whitespace-end:
+    var addr + 1
+    lt $t 33
+    goto_if *.end
+    var word a $t
+    goto *.loop
+.end:
+    var t f d-stack $dp
+    var d-stack r $dp 1
+    var dp - 1
     return
 
 

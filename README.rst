@@ -15,7 +15,7 @@ want to use it make sure to check out the glossary (not yet existent).
 To use YSL Forth wait until I finish it. Otherwise you may want to:
 
 1. Install YSL_, its host language;
-2. Call ``YSL core.ysl`` in command line;
+2. Call ``ysl core.ysl`` in command line;
 3. You should be greeted with the magic number 2137. You can now write Forth!
 
 
