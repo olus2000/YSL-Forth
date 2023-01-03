@@ -1,5 +1,4 @@
-: dummy 2134 . ;
-
+: thing ;
 
 code memory-dump
 memory-dump:
@@ -53,6 +52,14 @@ code depth
 ;
 
 
+code drop
+    var t f d-stack $dp
+    var d-stack r $dp 1
+    var dp - 1
+    goto *next
+;
+
+
 code '
 ':
     gosub *parse-word
@@ -66,6 +73,41 @@ code '
     var t = $x
     goto *next
 ;
+
+
+code parse
+    var delim = $t
+    var addr = $source
+    var addr + $>in
+    var d-stack a $addr
+    var dp + 1
+    var t = $addr
+    .loop:
+        lt $>in $source-size
+        goto_if *.not-end-of-source
+        goto *.end
+        .not-end-of-source:
+        var x = $t
+        gosub *_@
+        var x f return
+        var >in + 1
+        var t + 1
+        cmp $x $delim
+        goto_if *.end
+        goto *.loop
+    .end:
+    var t - $addr
+    goto *next
+;
+
+
+code immediate
+    var immediates s $dictionary-pointer -1
+    goto *next
+;
+
+
+: ( ') parse drop drop ; immediate
 
 
 2137 .

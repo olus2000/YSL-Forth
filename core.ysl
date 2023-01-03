@@ -304,7 +304,6 @@ _refill:
     .actually-refill:
     input
     var input-buffer c return
-    var input-buffer a 10
     var >in = 0
     size input-buffer
     var input-buffer-size f return
@@ -334,9 +333,6 @@ drop-file:
 
 
 # Parsing
-parse:
-    
-
 
 # c-addr -- ext (1 | -1) | c-addr 0
 find:
@@ -733,7 +729,7 @@ parse-number:
         .not-small-letters:
         lt $j &A
         goto_if *.not-big-letters
-        var j - 17
+        var j - 7
         .not-big-letters:
         lt $j &0
         goto_if *.not-digits
@@ -743,6 +739,8 @@ parse-number:
         goto_if *.end
         gt $j $max-digit
         goto_if *.end
+#       print "Digit value: "
+#       println $j
         var x * $base
         var x + $j
         var i + 1
