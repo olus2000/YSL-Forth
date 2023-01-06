@@ -111,7 +111,7 @@ code ysl-here # ( -- x )
 
 ( --- Stack shuffling --- )
 
-( : drop defined at the top ; ) ( x -- )
+( drop defined at the top )
 
 code dup # ( x -- x x )
     var d-stack a $t
@@ -332,8 +332,8 @@ code create # ( "<spaces>word<space>" -- )
 
 : ;code ( If you don't know what it does a stack effect won't help )
     ysl-here postpone literal
-    [ ' latest ] literal ,
-    [ ' ! ] literal ,
+    postpone latest
+    postpone !
     postpone ;
     compile
 ; immediate

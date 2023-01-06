@@ -247,8 +247,8 @@ rot:
 
 # I/O
 dot:
-    print " "
     print $t
+    print " "
     var t f d-stack $dp
     var d-stack r $dp 1
     var dp - 1
@@ -547,7 +547,7 @@ quit:
     .actually-refill:
         cmp $state 1
         goto_if *.no-ok
-        println " ok."
+        println "ok."
         .no-ok:
         gosub *_refill
         goto_if *.successful-refill
