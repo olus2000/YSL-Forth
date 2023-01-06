@@ -37,12 +37,14 @@ var file-stack-pointer - 1
 var file-buffer-offset = -1048576
 var input-buffer-offset = -256
 var input-buffer-offset + $file-buffer-offset
+var input-size-offset = -1
+var input-size-offset + $input-buffer-offset
 
 # Dictionary
-string_array n  "." "bye" "," "+" "[" "]" ":" ";" "create" "code" 
+string_array n  "." "bye" "," "[" "]" ":" ";" "code" "compile"
 var dictionary c return
-var dict-refs  = 0   1     4   5   6   7   9   10  11       12
-var immediates = 1   1     1   1  -1   1   1  -1   1        1
+var dict-refs  = 0   1     4   5   6   8   9   10     12
+var immediates = 1   1     1  -1   1   1  -1   1      1
 string_array l dictionary
 var dictionary-pointer f return
 var dictionary-pointer - 1
@@ -57,12 +59,14 @@ var source-id = -1
 
 # Memory locations
 var YSL-action-from-YSL-helper-addr = 2
-var lit-action = 13
-var exit-action = 8
+var lit-action = 11
+var exit-action = 7
+var comma-action = 4
+var jump-action = 13
 
 # Memory
-#         0    1     2 3                                    4  5  6  7  8     9      10 11      12    13
-var mem = *dot *halt 3 *execute-YSL-action-from-YSL-cleanup *, *+ *[ *] *exit *colon *; *create *code *lit
+#         0    1     2 3                                    4  5  6  7     8      9  10    11   12       13
+var mem = *dot *halt 3 *execute-YSL-action-from-YSL-cleanup *, *[ *] *exit *colon *; *code *lit *compile *jump
 size mem
 var mp f return
 var mp - 1
@@ -89,7 +93,16 @@ next:
 #   var w f return
 #   print $w
 #   print " IP: "
-#   println $ip
+#   print $ip
+#   print " Rdepth: "
+#   size r-stack
+#   var x f return
+#   print $x
+#   print " RP: "
+#   print $rp
+#   print " R: "
+#   var x f r-stack $rp
+#   println $x
 
     var w f mem $ip
     var ip + 1
@@ -102,6 +115,8 @@ enter:
     var r-stack a $ip
     var rp + 1
     var ip = $w
+#   print "Entering "
+#   println $ip
     goto *next
 
 
@@ -116,13 +131,6 @@ dovar:
     var d-stack a $t
     var dp + 1
     var t = $w
-    goto *next
-
-
-doconst:
-    var d-stack a $t
-    var dp + 1
-    var t f mem $w
     goto *next
 
 
@@ -145,14 +153,12 @@ lit:
     goto *next
 
 
-# Memory access
-@:
-    var x = $t
-    gosub *_@
-    var t f return
+jump:
+    var ip f mem $ip
     goto *next
 
 
+# Memory access
 _@:
 #   print "Getting value at "
 #   println $x
@@ -173,36 +179,20 @@ _@:
         return $x
     .input-buffer:
         lt $x $input-buffer-offset
-        goto_if *.out-of-bounds
+        goto_if *.>in
 #       println "It's input buffer"
         var x - $input-buffer-offset
         var x f input-buffer $x
         return $x
+    .>in:
+        lt $x $input-size-offset
+        goto_if *.out-of-bounds
+#       println "It's >in variable
+        return $>in
     # Default out of bounds @
     .out-of-bounds:
 #       println "It's out of bounds"
         return 0
-
-
-!:
-#   gt $t mp
-#   gosub_if *!-expand-memory
-    lt $t 0
-    goto_if *!-mapped
-    var x f d-stack $dp
-    var dp - 1
-    var mem s $t $x
-    var t f d-stack $dp
-    var d-stack r $dp 2
-    var dp - 1
-    goto *next
-!-expand-memory:
-    set_size mem $t
-    var mp = $t
-    return
-# Mapped !
-!-mapped:
-    return
 
 
 +!:
@@ -228,19 +218,6 @@ _@:
 
 
 # Maths
-+:
-    var x f d-stack $dp
-#   print $t
-#   print " + "
-#   print $x
-#   print " = "
-    var t + $x
-#   println $t
-    var d-stack r $dp 1
-    var dp - 1
-    goto *next
-
-
 0=:
     cmp 0 $t
     goto_if *0=-true
@@ -251,19 +228,6 @@ _@:
 
 
 # Stack shuffling
-dup:
-    var d-stack a $t
-    var dp + 1
-    goto *next
-
-
-swap:
-    var x f d-stack $dp
-    var d-stack s $dp $t
-    var t = $x
-    goto *next
-
-
 over:
     var d-stack a $t
     var t f d-stack $dp
@@ -322,34 +286,23 @@ refill:
     goto *next
 
 
-drop-file:
-    string_array g file-stack $file-stack-pointer
-    var current-file f return
-    string_array r file-stack $file-stack-pointer
-    var file-stack-pointer - 1
-    size current-file
-    var current-file-size f return
-    goto *next
-
-
 # Parsing
 
-# c-addr -- ext (1 | -1) | c-addr 0
+# addr -- xt (1 | -1) | addr 0
 find:
     var word = ""
     var word-addr = $t
-    var couner = $word-addr
-    var x = *@
-    gosub *execute-YSL-action-from-YSL
-    var word-length = $t
+    var x = $t
+    gosub *_@
+    var word-length f return
     lt $word-length 1
     goto *.no-copy-word
     .copy-word-loop:
-        var counter + 1
-        var t = $counter
-        var x = *@
-        gosub *execute-YSL-action-from-YSL
-        var word a $t
+        var t + 1
+        var x = $t
+        gosub *_@
+        var x f return
+        var word a $x
         var word-length - 1
         gt $word-length 0
         goto *.copy-word-loop
@@ -400,6 +353,8 @@ _find:
 
 define:
     gosub *parse-word
+#   print "Defining new word: "
+#   println !word
     string_array a dictionary !word
     var immediates a 1
     var x = $mp
@@ -407,13 +362,6 @@ define:
     var dict-refs a $x
     var dictionary-pointer + 1
     return
-
-
-create:
-    gosub *define
-    var mem a *dovar
-    var mp + 1
-    goto *next
 
 
 colon:
@@ -443,9 +391,11 @@ code:
     var mp + 1
 #   print "\$here is at "
 #   println $here
+
+
+compile:
     var addr = $source
     var addr + $>in
-
     .loop:
         # if input is over refill
         lt $>in $source-size
@@ -539,9 +489,23 @@ halt:
 
 # Source code interpreter & compiler
 quit:
-        cmp $>in $source-size
-        goto_if *.refill
+#       print "Compilation state: "
+#       println $state
+        lt $>in $source-size
+        goto_if *.no-refill
+    .refill:
+        cmp $source-id 0
+        goto_if *.actually-refill
+#       println "Exiting interpretation of string"
+        goto *next
+    .no-refill:
         gosub *parse-word
+        size word
+        var x f return
+#       print "Size of word: "
+#       println $x
+        cmp $x 0
+        goto_if *quit
         gosub *_find
         var found f return
 #       print "found = "
@@ -575,16 +539,11 @@ quit:
         goto *quit
     .execute:
 #   print "Executing word "
-#   println !w
+#   println !word
 #       print "Executing word at "
 #       println $x
         gosub *execute-Forth-word-from-YSL
         goto *quit
-    .refill:
-        cmp $source-id 0
-        goto_if *.actually-refill
-#       println "Exiting interpretation of string"
-        goto *next
     .actually-refill:
         cmp $state 1
         goto_if *.no-ok
@@ -601,7 +560,9 @@ quit:
 
 # input-buffer input-buffer-size >in -- word:w
 parse-word:
+#   println "Parsing whitespace..."
     gosub *parse-whitespace
+#   println "Parsing name..."
     gosub *parse-non-whitespace
 #   print "Parsed \""
 #   print !word
@@ -611,52 +572,44 @@ parse-word:
 
 # >in --
 parse-whitespace:
-    var d-stack a $t
-    var dp + 1
     var addr = $source
     var addr + $>in
 .loop:
-    cmp $>in $source-size
-    goto_if *.end
-    var t = $addr
-    var x = *@
-    gosub *execute-YSL-action-from-YSL
-    gt $t 32
+    lt $>in $source-size
+    goto_if *.no-end
+    goto *.end
+    .no-end:
+    var x = $addr
+    gosub *_@
+    var x f return
+    gt $x 32
     goto_if *.end
     var >in + 1
     var addr + 1
     goto *.loop
 .end:
-    var t f d-stack $dp
-    var d-stack r $dp 1
-    var dp - 1
     return
 
 
 # >in -- word
 parse-non-whitespace:
     var word = ""
-    var d-stack a $t
-    var dp + 1
     var addr = $source
     var addr + $>in
 .loop:
     cmp $>in $source-size
     goto_if *.end
-    var t = $addr
 #   println "Calling @..."
-    var x = *@
-    gosub *execute-YSL-action-from-YSL
+    var x = $addr
+    gosub *_@
+    var x f return
     var >in + 1
     var addr + 1
-    lt $t 33
+    lt $x 33
     goto_if *.end
-    var word a $t
+    var word a $x
     goto *.loop
 .end:
-    var t f d-stack $dp
-    var d-stack r $dp 1
-    var dp - 1
     return
 
 
@@ -688,25 +641,32 @@ cmp-string:
 
 # word:word -- num:t
 parse-number:
+#   print "Parsing number "
+#   println !word
     var x = 0
     var i = 1
     var tmp-base = $base
     var base = 10
     cmp $word &#
     goto_if *.sign
+#   println "Not decimal"
     var base = 16
     cmp $word &$
     goto_if *.sign
+#   println "Not hex"
     var base = 2
     cmp $word &%
     goto_if *.sign
+#   println "Not binary"
     var base = $tmp-base
     cmp $word &'
     goto_if *.charnum
+#   println "Not charnum"
     var i - 1
 .sign:
     var max-digit = $base
     var max-digit - 1
+#   println "Setting negative flag"
     var negative = 1
     var j f word $i
     var i + 1
@@ -736,9 +696,9 @@ parse-number:
         var j - &0
         .not-digits:
         lt $j 0
-        goto_if *.end
+        goto_if *.error
         gt $j $max-digit
-        goto_if *.end
+        goto_if *.error
 #       print "Digit value: "
 #       println $j
         var x * $base
@@ -754,7 +714,16 @@ parse-number:
     .nonnegative:
     return
 .charnum:
+#   println "Yes charnum"
     var x f word 1
     return
+.error:
+    print "Digit of value "
+    print $j
+    print " at position "
+    print $i
+    print " in number "
+    println !word
+    error
 
 code-end:
