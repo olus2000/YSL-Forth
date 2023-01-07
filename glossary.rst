@@ -73,7 +73,7 @@ name : ( arguments "parsed" -- outputs ) : [ immediate ] : standard/YSL
 ``(`` : ( "ccc)" -- ) : standard
     Parse until ``)`` is encountered or until the end of the parse area.
 
-``\\`` : ( "ccc<newline>" -- ) : standard
+``\`` : ( "ccc<newline>" -- ) : standard
     Parse until *newline* is encountered or until the end of the parse area.
 
 ``parse`` : ( char "ccc<char>" -- addr n ) : standard
