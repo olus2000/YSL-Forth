@@ -41,10 +41,10 @@ var input-size-offset = -1
 var input-size-offset + $input-buffer-offset
 
 # Dictionary
-string_array n  "." "bye" "," "[" "]" ":" ";" "code" "compile"
+string_array n  "." "bye" "," "[" "]" ":" ";" "code" "compile" "exit"
 var dictionary c return
-var dict-refs  = 0   1     4   5   6   8   9   10     12
-var immediates = 1   1     1  -1   1   1  -1   1      1
+var dict-refs  = 0   1     4   5   6   8   9   10     12        7
+var immediates = 1   1     1  -1   1   1  -1   1      1         1
 string_array l dictionary
 var dictionary-pointer f return
 var dictionary-pointer - 1

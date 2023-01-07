@@ -2,6 +2,8 @@
                                YSL Forth Glossary
 ################################################################################
 
+.. Maximum width of this document should be kept at 80.
+
 name : ( arguments "parsed" -- outputs ) : [ immediate ] : standard/YSL
     *name* is the name of the word. *arguments* are values it expects on the
     stack starting from the bottommost one. *parsed* indicates what the word
@@ -17,8 +19,14 @@ name : ( arguments "parsed" -- outputs ) : [ immediate ] : standard/YSL
                          System variables and constants
 --------------------------------------------------------------------------------
 
+``here`` : ( -- addr ) : standard
+    *addr* is the address of the next memory cell to be allocated.
+
 ``ysl-here`` : ( -- x ) : YSL
-    Push the line number at which the next line of YSL code will be compiled.
+    *x* is the line number at which the next line of YSL code will be compiled.
+
+``enter-action`` : ( -- x ) : YSL
+    *x* is the YSL address of the action responsible for entering definitions.
 
 
 --------------------------------------------------------------------------------
@@ -50,6 +58,9 @@ name : ( arguments "parsed" -- outputs ) : [ immediate ] : standard/YSL
 
 ``+`` : ( n n -- n ) : standard
     Add top two values from the stack.
+
+``-`` : ( a b -- n ) : standard
+    Subtract *b* from *a*.
 
 ``*`` : ( n n -- n ) : standard
     Multiply top two values from the stack.
@@ -126,6 +137,12 @@ name : ( arguments "parsed" -- outputs ) : [ immediate ] : standard/YSL
 ``latest`` : ( -- addr ) : YSL
     Push the address of the action field of the latest defined word.
 
+``exit`` : ( -- ) ( R: x -- ) : standard
+    Return from word.
+
+``jump`` : ( addr -- ) : immediate : YSL
+    Compile code that will jump to *addr*.
+
 ``literal`` : ( x -- ) comp: ( -- x ) : immediate : standard
     Compile code that will push *x*.
 
@@ -133,6 +150,13 @@ name : ( arguments "parsed" -- outputs ) : [ immediate ] : standard/YSL
 --------------------------------------------------------------------------------
                                   Combinators
 --------------------------------------------------------------------------------
+
+``{`` : ( -- orig ) comp: ( -- xt ) : immediate : YSL
+    Compile code that will push the execution token of a following quotation and
+    jump over it. Compile the runtime semantics to execute the quotation body at
+    the execution token. Leave the data about incomplete jump on the stack.
+
+``}`` : ( orig -- ) : immediate
 
 ``evaluate`` : ( x*i addr n -- x*j ) : standard
     Save parsing state and switch it to parsing the string at *addr* with length
@@ -150,7 +174,7 @@ name : ( arguments "parsed" -- outputs ) : [ immediate ] : standard/YSL
 
 ``@`` : ( addr -- x ) : standard
     Fetch the value from the address. Due to memory mapping of negative
-    addresses this is not equal to YSL::
+    addresses this is **not** equal to YSL::
 
         var t f mem $t
         goto *next

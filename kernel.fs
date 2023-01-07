@@ -109,6 +109,23 @@ code ysl-here # ( -- x )
 ;
 
 
+code here # ( -- addr )
+    var d-stack a $t
+    var dp + 1
+    var t = $mp
+    var t + 1
+    goto *next
+;
+
+
+code enter-action # ( -- x )
+    var d-stack a $t
+    var dp + 1
+    var t = *enter
+    goto *next
+;
+
+
 ( --- Stack shuffling --- )
 
 ( drop defined at the top )
@@ -315,6 +332,17 @@ code literal # ( x -- )
 ; immediate
 
 
+code jump # ( addr -- )
+    var mem a $jump-action
+    var mem a $t
+    var mp + 2
+    var t f d-stack $dp
+    var d-stack r $dp 1
+    var dp - 1
+    goto *next
+; immediate
+
+
 code create # ( "<spaces>word<space>" -- )
 #   println "Starting create"
     gosub *define
@@ -363,6 +391,17 @@ code + # ( n n -- n )
     goto *next
 ;
 
+
+code - # ( n n -- n )
+    var x f d-stack $dp
+    var x - $t
+    var d-stack r $dp 1
+    var dp - 1
+    var t = $x
+    goto *next
+;
+
+
 code * # ( n n -- n )
 #   println "Calling *"
     var x f d-stack $dp
@@ -374,6 +413,17 @@ code * # ( n n -- n )
 
 
 ( --- Combinators --- )
+
+: { ( -- orig ) ( comp: -- xt )
+  here 4 + postpone literal
+  0 postpone jump
+  here 1 -
+  enter-action , ; immediate
+
+
+: } ( orig -- )
+  postpone exit here swap ! ; immediate
+  
 
 code evaluate # ( x*i addr u -- x*j )
     var r-stack a $source
@@ -412,6 +462,7 @@ code execute # ( x*i xt -- x*j )
     var d-stack r $dp 1
     var dp - 1
     var x f mem $w
+    var w + 1
     goto $x
 ;
 
