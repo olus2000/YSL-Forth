@@ -4,7 +4,7 @@
 
 .. Maximum width of this document should be kept at 80.
 
-name : ( arguments "parsed" -- outputs ) : [ immediate ] : standard/YSL
+``name`` : ( arguments "parsed" -- outputs ) : [ immediate ] : standard/YSL
     *name* is the name of the word. *arguments* are values it expects on the
     stack starting from the bottommost one. *parsed* indicates what the word
     parses. *outputs* are values it leaves, replacing *arguments*; also from the
@@ -42,6 +42,12 @@ name : ( arguments "parsed" -- outputs ) : [ immediate ] : standard/YSL
 ``swap`` : ( a b -- b a ) : standard
     Swap top two values on the stack.
 
+``over`` : ( a b -- a b a ) : standard
+    Copy the second element from the stack to the top.
+
+``rot`` : ( a b c -- b c a ) : standard
+    Move the third element from the stack to the top.
+
 ``depth`` : ( -- n ) : standard
     Push the number of items on the stack before executing *depth*.
 
@@ -64,6 +70,9 @@ name : ( arguments "parsed" -- outputs ) : [ immediate ] : standard/YSL
 
 ``*`` : ( n n -- n ) : standard
     Multiply top two values from the stack.
+
+``0=`` : ( n -- ? ) : standard
+    Return -1 if *n* is zero and 0 otherwise.
 
 
 --------------------------------------------------------------------------------
@@ -156,16 +165,36 @@ name : ( arguments "parsed" -- outputs ) : [ immediate ] : standard/YSL
     jump over it. Compile the runtime semantics to execute the quotation body at
     the execution token. Leave the data about incomplete jump on the stack.
 
-``}`` : ( orig -- ) : immediate
+``}`` : ( orig -- ) : immediate : YSL
 
-``evaluate`` : ( x*i addr n -- x*j ) : standard
+``evaluate`` : ( A.. addr n -- B.. ) : standard
     Save parsing state and switch it to parsing the string at *addr* with length
     *n*. Interpret the string. Restore saved parsing state. Additional stack
     effect comes from interpreted string.
 
-``execute`` : ( x*i xt -- x*j ) : standard
+``execute`` : ( A.. xt:{ A.. -- B.. } -- B.. ) : standard
     Execute word identified by *xt* execution token. Additional stack effect
     comes from the word executed.
+
+``dip`` : ( A.. x xt:{ A.. -- B.. } -- B.. x ) : YSL
+    Execute *xt* below the top element of the stack.
+
+``keep`` : ( A.. x xt:{ A.. x -- B.. } -- B.. x ) : YSL
+    Execute *xt* and restore the top element of the stack from before execution.
+
+
+--------------------------------------------------------------------------------
+                                  Control flow
+--------------------------------------------------------------------------------
+
+``when`` : ( A.. ? xt:{ A.. -- B.. } -- B.. | A.. ) : YSL
+    Execute *xt* if *?* is nonzero.
+
+``unless`` : ( A.. ? xt:{ A.. -- B.. } -- A.. | B.. ) : YSL
+    Execute *xt* unless *?* is nonzero.
+
+``if`` : ( X.. ? a:{ X.. -- A.. } b:{ X.. -- B.. } -- A.. | B.. ) : YSL
+    Execute *a* if *?* is nonzero, otherwise execute *b*.
 
 
 --------------------------------------------------------------------------------

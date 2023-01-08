@@ -137,10 +137,29 @@ code dup # ( x -- x x )
 ;
 
 
-code swap # ( x1 x2 -- x2 x1 )
+code swap # ( a b -- b a )
     var x f d-stack $dp
     var d-stack s $dp $t
     var t = $x
+    goto *next
+;
+
+
+code over # ( a b -- a b a )
+    var d-stack a $t
+    var t f d-stack $dp
+    var dp + 1
+    goto *next
+;
+
+
+code rot # ( a b c -- b c a )
+    var x f d-stack $dp
+    var d-stack s $dp $t
+    var dp - 1
+    var t f d-stack $dp
+    var d-stack s $dp $x
+    var dp + 1
     goto *next
 ;
 
@@ -412,6 +431,16 @@ code * # ( n n -- n )
 ;
 
 
+code 0= # ( n -- ? )
+    cmp 0 $t
+    goto_if *.true
+    var t = 1
+    .true:
+    var t - 1
+    goto *next
+;
+
+
 ( --- Combinators --- )
 
 : { ( -- orig ) ( comp: -- xt )
@@ -425,7 +454,7 @@ code * # ( n n -- n )
   postpone exit here swap ! ; immediate
   
 
-code evaluate # ( x*i addr u -- x*j )
+code evaluate # ( A.. addr u -- B.. )
     var r-stack a $source
     var r-stack a $source-size
     var r-stack a $source-id
@@ -456,7 +485,7 @@ code evaluate # ( x*i addr u -- x*j )
 ;
 
 
-code execute # ( x*i xt -- x*j )
+code execute # ( A.. { A.. -- B.. } -- B.. )
     var w = $t
     var t f d-stack $dp
     var d-stack r $dp 1
@@ -465,6 +494,38 @@ code execute # ( x*i xt -- x*j )
     var w + 1
     goto $x
 ;
+
+
+: dip ( A.. x { A.. -- B.. } -- B.. x } )
+  swap >r execute r> ;
+
+: keep ( A.. x { A.. x -- B.. } -- B.. x } )
+  over >r execute r> ;
+
+
+( --- Control flow --- )
+
+code when # ( A.. ? { A.. -- B.. } -- B.. | A.. )
+    var x f d-stack $dp
+    var dp - 1
+    var w = $t
+    var t f d-stack $dp
+    var d-stack r $dp 2
+    var dp - 1
+    cmp $x 0
+    goto_if *next
+    var x f mem $w
+    var w + 1
+    goto $x
+;
+
+
+: unless ( A.. ? { A.. -- B.. } -- A.. | B.. )
+  [ ' 0= ] literal dip when ;
+
+
+: if ( A.. ? { A.. -- B.. } { A.. -- C.. } -- B.. | C.. )
+  rot [ ' swap ] literal unless drop execute ;
 
 
 ( --- File access --- )

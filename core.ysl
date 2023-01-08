@@ -217,34 +217,6 @@ _@:
     goto *next
 
 
-# Maths
-0=:
-    cmp 0 $t
-    goto_if *0=-true
-    var t = 1
-0=-true:
-    var t - 1
-    goto *next
-
-
-# Stack shuffling
-over:
-    var d-stack a $t
-    var t f d-stack $dp
-    var dp + 1
-    goto *next
-
-
-rot:
-    var x f d-stack $dp
-    var d-stack s $dp $t
-    var dp - 1
-    var t f d-stack $dp
-    var d-stack s $dp $x
-    var dp + 1
-    goto *next
-
-
 # I/O
 dot:
     print $t
