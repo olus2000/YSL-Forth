@@ -155,6 +155,12 @@
 ``literal`` : ( x -- ) comp: ( -- x ) : immediate : standard
     Compile code that will push *x*.
 
+``shadow`` : ( -- ) : YSL
+    Make the latest visible definition invisible to the interpreter.
+
+``unshadow`` : ( -- ) : YSL
+    Make the latest shadowed definition visible to the interpreter.
+
 
 --------------------------------------------------------------------------------
                                   Combinators
@@ -166,6 +172,13 @@
     the execution token. Leave the data about incomplete jump on the stack.
 
 ``}`` : ( orig -- ) : immediate : YSL
+    Compile a return from word and complete the jump semantics pointed to by
+    *orig*.
+
+``this`` : ( -- ) comp: ( -- xt ) : immediate : YSL
+    Compile code that will push the execution token of the currently defined
+    word. Assumes that currently defined word has been shadowed by ``:`` or
+    equivalent.
 
 ``evaluate`` : ( A.. addr n -- B.. ) : standard
     Save parsing state and switch it to parsing the string at *addr* with length
@@ -175,6 +188,10 @@
 ``execute`` : ( A.. xt:{ A.. -- B.. } -- B.. ) : standard
     Execute word identified by *xt* execution token. Additional stack effect
     comes from the word executed.
+
+``recurse`` : ( -- ) : immediate : standard
+    Compile semantics of a recursive call to the word currently being defined.
+    Assumes the word has been shadowed by ``:`` or equivalent.
 
 ``dip`` : ( A.. x xt:{ A.. -- B.. } -- B.. x ) : YSL
     Execute *xt* below the top element of the stack.
@@ -195,6 +212,15 @@
 
 ``if`` : ( X.. ? a:{ X.. -- A.. } b:{ X.. -- B.. } -- A.. | B.. ) : YSL
     Execute *a* if *?* is nonzero, otherwise execute *b*.
+
+``loop`` : ( A.. xt:{ A.. -- A.. ? } -- A.. ) : YSL
+    Execute *xt* consuming *?* until *?* is zero.
+
+``while`` : ( A.. pred:{ A.. -- B.. ? } body:{ B.. -- A.. } -- B.. ) : YSL
+    Execute *pred*. Consume *?* and if it's nonzero execute *body* and repeat.
+
+``until`` : ( A.. pred:{ A.. -- B.. ? } body:{ B.. -- A.. } -- B.. ) : YSL
+    Execute *pred*. Consume *?* and if it's zero execute *body* and repeat.
 
 
 --------------------------------------------------------------------------------

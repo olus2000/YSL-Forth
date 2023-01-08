@@ -340,6 +340,18 @@ code latest # ( -- xt )
 ;
 
 
+code shadow # ( -- )
+    var dictionary-pointer - 1
+    goto *next
+;
+
+
+code unshadow # ( -- )
+    var dictionary-pointer + 1
+    goto *next
+;
+
+
 code literal # ( x -- )
     var mem a $lit-action
     var mem a $t
@@ -452,6 +464,13 @@ code 0= # ( n -- ? )
 
 : } ( orig -- )
   postpone exit here swap ! ; immediate
+
+
+: this ( -- ) ( comp: -- xt )
+  unshadow latest postpone literal shadow ; immediate
+
+: recurse ( -- )
+  unshadow latest , shadow ; immediate
   
 
 code evaluate # ( A.. addr u -- B.. )
@@ -526,6 +545,22 @@ code when # ( A.. ? { A.. -- B.. } -- B.. | A.. )
 
 : if ( A.. ? { A.. -- B.. } { A.. -- C.. } -- B.. | C.. )
   rot [ ' swap ] literal unless drop execute ;
+
+
+: loop ( A.. { A.. -- A.. ? } -- A.. )
+  dup dip swap this [ ' drop ] literal if ;
+
+
+: while ( A.. { A.. -- B.. ? } { B.. -- A.. } -- B.. )
+  swap dup >r dip r> rot
+  { swap dup >r dip r> recurse }
+  { drop drop } if ;
+
+
+: until ( A.. { A.. -- B.. ? } { B.. -- A.. } -- B.. )
+  swap dup >r dip r> rot
+  { drop drop }
+  { swap dup >r dip r> recurse } if ;
 
 
 ( --- File access --- )
