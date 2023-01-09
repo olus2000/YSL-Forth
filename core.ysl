@@ -32,13 +32,25 @@ string_array l file-stack
 var file-stack-pointer f return
 var file-stack-pointer - 1
 
+# Temporary buffers
+var tmp-buffers-num = 8
+var tmp-buffer-size = 1024
+var tmp-buffers = 0
+var total-tmp-buffers-size = $tmp-buffer-size
+var total-tmp-buffers-size * $tmp-buffers-num
+set_size tmp-buffers $total-tmp-buffers-size
+var next-tmp-buffer = 0
 
 # Memory mapping addresses
 var file-buffer-offset = -1048576
 var input-buffer-offset = -256
 var input-buffer-offset + $file-buffer-offset
-var input-size-offset = -1
-var input-size-offset + $input-buffer-offset
+var >in-offset = -1
+var >in-offset + $input-buffer-offset
+var tco-size-offset = -1
+var tco-size-offset + $>in-offset
+var tmp-buffers-offset = $tco-size-offset
+var tmp-buffers-offset - $total-tmp-buffers-size
 
 # Dictionary
 string_array n  "." "bye" "," "[" "]" ":" ";" "code" "compile" "exit"
@@ -49,13 +61,14 @@ string_array l dictionary
 var dictionary-pointer f return
 var dictionary-pointer - 1
 
-# Other Forth variables
+# Other variables
 var base = 10
 var state = 0
 var here = *code-end
 var source = $file-buffer-offset
 var source-size = $current-file-size
 var source-id = -1
+var tco-size = 0
 
 # Memory locations
 var YSL-action-from-YSL-helper-addr = 2
@@ -63,10 +76,11 @@ var lit-action = 11
 var exit-action = 7
 var comma-action = 4
 var jump-action = 13
+var tail-call-action = 14
 
 # Memory
 #         0    1     2 3                                    4  5  6  7     8      9  10    11   12       13
-var mem = *dot *halt 3 *execute-YSL-action-from-YSL-cleanup *, *[ *] *exit *colon *; *code *lit *compile *jump
+var mem = *dot *halt 3 *execute-YSL-action-from-YSL-cleanup *, *[ *] *exit *colon *; *code *lit *compile *jump *tail-call
 size mem
 var mp f return
 var mp - 1
@@ -86,23 +100,23 @@ goto *quit
 
 # Basic Forth actions
 next:
-#   print "ToS: "
-#   print $t
-#   print " size: "
-#   size d-stack
-#   var w f return
-#   print $w
-#   print " IP: "
-#   print $ip
-#   print " Rdepth: "
-#   size r-stack
-#   var x f return
-#   print $x
-#   print " RP: "
-#   print $rp
-#   print " R: "
-#   var x f r-stack $rp
-#   println $x
+    print "ToS: "
+    print $t
+    print " size: "
+    size d-stack
+    var w f return
+    print $w
+    print " IP: "
+    print $ip
+    print " Rdepth: "
+    size r-stack
+    var x f return
+    print $x
+    print " RP: "
+    print $rp
+    print " R: "
+    var x f r-stack $rp
+    println $x
 
     var w f mem $ip
     var ip + 1
@@ -125,6 +139,16 @@ exit:
     var r-stack r $rp 1
     var rp - 1
     goto *next
+
+
+tail-call:
+    var w f mem $ip
+    var ip f r-stack $rp
+    var r-stack r $rp 1
+    var rp - 1
+    var x f mem $w
+    var w + 1
+    goto $x
 
 
 dovar:
@@ -185,10 +209,17 @@ _@:
         var x f input-buffer $x
         return $x
     .>in:
-        lt $x $input-size-offset
-        goto_if *.out-of-bounds
-#       println "It's >in variable
+        lt $x $>in-offset
+        goto_if *.tmp-buffers
+#       println "It's >in variable"
         return $>in
+    .tmp-buffers:
+        lt $x $tmp-buffers-offset
+        goto_if *.out-of-bounds
+#       println "It's tmp buffers"
+        var x - $tmp-buffers-offset
+        var x f tmp-buffers $x
+        return $x
     # Default out of bounds @
     .out-of-bounds:
 #       println "It's out of bounds"
@@ -214,6 +245,7 @@ _@:
     var t f d-stack $dp
     var d-stack r $dp 1
     var dp - 1
+    var tco-size = 1
     goto *next
 
 
@@ -342,15 +374,39 @@ colon:
     var mp + 1
     var state = 1
     var dictionary-pointer - 1
+    var tco-size = 0
     goto *next
 
 
 ;:
-    var mem a $exit-action
-    var mp + 1
-    var dictionary-pointer + 1
-    var state = 0
-    goto *next
+    cmp $tco-size 0
+    goto_if *.just-exit
+        var w = $tco-size
+        var x f mem $mp
+        var mem a $x
+        var w - 1
+    .loop:
+        cmp $w 0
+        goto_if *.endloop
+        var mp - 1
+        var x f mem $mp
+        var mp + 1
+        var mem s $mp $x
+        var mp - 1
+        var w - 1
+        goto *.loop
+    .endloop:
+        var mem s $mp $tail-call-action
+        var mp + $tco-size
+        var tco-size = 0
+        goto *.end
+    .just-exit:
+        var mem a $exit-action
+        var mp + 1
+    .end:
+        var dictionary-pointer + 1
+        var state = 0
+        goto *next
 
 
 code:
@@ -363,6 +419,10 @@ code:
     var mp + 1
 #   print "\$here is at "
 #   println $here
+    var x = *compile
+    gosub *execute-YSL-action-from-YSL
+    var tco-size = 0
+    goto *next
 
 
 compile:
@@ -489,6 +549,7 @@ quit:
         cmp $found -1
         goto_if *.execute
         gosub *.compile
+        var tco-size = 1
         goto *quit
     .compile:
         var mem a $x
@@ -503,6 +564,7 @@ quit:
         gosub *.compile
         var x = $tmp
         gosub *.compile
+        var tco-size = 2
         goto *quit
     .push-number:
         var d-stack a $t

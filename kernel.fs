@@ -41,6 +41,12 @@ code immediate # ( -- )
 ;
 
 
+code nop # ( -- )
+    var tco-size = 0
+    goto *next
+; immediate
+
+
 : ( ') parse drop drop ; immediate
 
 
@@ -126,6 +132,14 @@ code enter-action # ( -- x )
 ;
 
 
+code tco-size # ( -- addr )
+    var d-stack a $t
+    var dp + 1
+    var t = $tco-size-offset
+    goto *next
+;
+
+
 ( --- Stack shuffling --- )
 
 ( drop defined at the top )
@@ -184,6 +198,8 @@ code r> # ( -- x ) ( R: x -- )
 ;
 
 
+
+
 code depth # ( -- n )
     var d-stack a $t
     var dp + 1
@@ -209,23 +225,22 @@ code ! # ( x addr -- )
     gt $t $mp
     goto_if *.out-of-bounds
     var x f d-stack $dp
-    var dp - 1
     var mem s $t $x
-    var t f d-stack $dp
-    var d-stack r $dp 2
-    var dp - 1
-    goto *next
+    goto *.out-of-bounds
 .mapped:
-    lt $t $input-size-offset
+    lt $t $>in-offset
+    goto_if *.tco-size
+    gt $t $>in-offset
     goto_if *.out-of-bounds
-    gt $t $input-size-offset
+    var >in f d-stack $dp
+    goto *.out-of-bounds
+.tco-size:
+    lt $t $tco-size-offset
     goto_if *.out-of-bounds
-    var t = $>in
-    var dp - 1
-    var t f d-stack $dp
-    var d-stack r $dp 2
-    var dp - 1
-    goto *next
+    gt $t $tco-size-offset
+    goto_if *.out-of-bounds
+    var tco-size f d-stack $dp
+    goto *.out-of-bounds
 .out-of-bounds:
     var dp - 1
     var t f d-stack $dp
@@ -257,17 +272,26 @@ code ' # ( "<spaces>word<space>" -- xt )
 
 
 ( I tried to implement $ as a Forth word, and failed. )
-code $ # ( "<spaces><delim>ccc<delim>" -- )
-    var mem a $lit-action
-    var mp + 7
-    var mem a $mp
-    var mp - 3
-    var hole = $mp
-    var mp + 2
-    var mem a $lit-action
-    var mem a 0
-    var mem a $jump-action
-    var mem a 0
+code $ # ( "<spaces><delim>ccc<delim>" -- | addr n )
+string:
+    cmp $state 0
+    goto_if *.interpret-header
+        var mem a $lit-action
+        var mp + 7
+        var mem a $mp
+        var mp - 3
+        var hole = $mp
+        var mp + 2
+        var mem a $lit-action
+        var mem a 0
+        var mem a $jump-action
+        var mem a 0
+        goto *.after-header
+    .interpret-header:
+        var target = $next-tmp-buffer
+        var target * $tmp-buffer-size
+        var start = $target
+    .after-header:
     gosub *parse-whitespace
     var addr = $source
     var addr + $>in
@@ -286,11 +310,19 @@ code $ # ( "<spaces><delim>ccc<delim>" -- )
         var x f return
         cmp $x $delim
         goto_if *.end
-        var mem a $x
-        var mp + 1
-        goto *.loop
+        cmp $state 0
+        goto_if *.interpret
+            var mem a $x
+            var mp + 1
+            goto *.loop
+        .interpret:
+            var tmp-buffers s $target $x
+            var target + 1
+            goto *.loop
     .end:
         var >in + 1
+        cmp $state 0
+        goto_if *.interpret-footer
         var len = $mp
         var len - $hole
         var len - 2
@@ -299,6 +331,17 @@ code $ # ( "<spaces><delim>ccc<delim>" -- )
         var len = $mp
         var len + 1
         var mem s $hole $len
+        var tco-size = 0
+        goto *next
+    .interpret-footer:
+        var d-stack a $t
+        var t = $target
+        var t - $start
+        var start + $tmp-buffers-offset
+        var d-stack a $start
+        var dp + 2
+        var next-tmp-buffer + 1
+        var next-tmp-buffer % $tmp-buffers-num
         goto *next
 ; immediate
 
@@ -308,6 +351,7 @@ postpone:
     gosub *parse-word
     gosub *_find
     var found f return
+    var tco-size = 1
     cmp $found -1
     goto_if *.immediate
         var mem a $lit-action
@@ -359,6 +403,7 @@ code literal # ( x -- )
     var t f d-stack $dp
     var d-stack r $dp 1
     var dp - 1
+    var tco-size = 2
     goto *next
 ; immediate
 
@@ -370,6 +415,7 @@ code jump # ( addr -- )
     var t f d-stack $dp
     var d-stack r $dp 1
     var dp - 1
+    var tco-size = 0
     goto *next
 ; immediate
 
@@ -380,6 +426,7 @@ code create # ( "<spaces>word<space>" -- )
     var mem a *dovar
     var mp + 1
 #   println "Finished create"
+    var tco-size = 0
     goto *next
 #   println "oops, too far into create"
 ;
@@ -393,6 +440,7 @@ code create # ( "<spaces>word<space>" -- )
     ysl-here postpone literal
     postpone latest
     postpone !
+    1 tco-size !
     postpone ;
     compile
 ; immediate
@@ -459,11 +507,12 @@ code 0= # ( n -- ? )
   here 4 + postpone literal
   0 postpone jump
   here 1 -
-  enter-action , ; immediate
+  enter-action ,
+  0 tco-size ! ; immediate
 
 
 : } ( orig -- )
-  postpone exit here swap ! ; immediate
+  postpone ; ] shadow here swap ! ; immediate
 
 
 : this ( -- ) ( comp: -- xt )
@@ -516,10 +565,10 @@ code execute # ( A.. { A.. -- B.. } -- B.. )
 
 
 : dip ( A.. x { A.. -- B.. } -- B.. x } )
-  swap >r execute r> ;
+  swap >r execute r> nop ;
 
 : keep ( A.. x { A.. x -- B.. } -- B.. x } )
-  over >r execute r> ;
+  over >r execute r> nop ;
 
 
 ( --- Control flow --- )

@@ -101,8 +101,11 @@
 
 ``$`` : ( "<spaces><char>ccc<char>" -- ) comp: ( -- addr n ) : immediate : YSL
     Parse a string between two delimiting characters. *char* can be any
-    character not present in the string. Compile the string along with code that
-    pushes its address and length to the stack.
+    character not present in the string. If in compilation state compile the
+    string along with code that pushes its address and length to the stack.
+    Otherwise save the string in a temporary buffer and push its address and
+    length on the stack. It may be invalidated by subsequent use of temporary
+    buffers.
 
 
 --------------------------------------------------------------------------------
@@ -286,4 +289,9 @@
     Exit the program.
 
 ``immediate`` : ( -- ) : standard
-    Make the latest defined word immediate.
+    Make the latest defined word immediate. It will be executed when encountered
+    int both interpretation and compilation state.
+
+``nop`` : ( -- ) : immediate : YSL
+    Turn off tail call optimisation for this point. Use between a word that
+    accesses the return stack and a returning word.
