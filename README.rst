@@ -36,6 +36,34 @@ Many words are already implemented, including stack shuffling, control flow and
 parsing/defining, but some areas (notably maths) are still lacking.
 
 
+----------------------------------
+ Main differences from Forth-2012
+----------------------------------
+
+YSL Forth is not trying to be a Forth-2012 Standard System. Most notably it
+tries to minimize the explicit use of the return stack, and implicit use of
+jumps for control flow. Instead it implements *quotations*: anonymous code
+snippets compiled with ``{ }`` which push their execution tokens on the stack,
+and *combinators*: words that work with execution tokens. All control flow in
+YSL Forth is implemented with quotations, and a *tail call optimisation* system
+is implemented to avoid unnecessary return stack growth.
+
+Some snippets showcasing translation of common phrases from Forth-2012 to
+YSL Forth::
+
+ ( Executing code below an item on top of stack )
+ >r some code r>   ( Forth-2012 )
+ { some code } dip ( YSL Forth  )
+ 
+ ( Conditional branch )
+ predicate if body-then else body-else then ( Forth-2012 )
+ predicate { body-then } { body-else } if   ( YSL Forth  )
+
+ ( While loop )
+ begin predicate while body repeat ( Forth-2012 )
+ { predicate } { body } while      ( YSL Forth  )
+
+
 -------------------
  How to contribute
 -------------------
