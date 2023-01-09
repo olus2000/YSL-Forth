@@ -4,15 +4,16 @@
 
 A Forth_ system implemented in `Yeti's Simple Language`_. It's based on
 the `Forth 2012 standard`_, but it doesn't adhere to it in some places so if you
-want to use it make sure to check out the glossary (not yet existent).
+want to use it make sure to check out the glossary_.
 
-.. All hyperlink targets can be found at the bottom of the document.
+.. _glossary: ./glossary.rst
+.. Most hyperlink targets can be found at the bottom of the document.
 
 -------
  Usage
 -------
 
-To use YSL Forth wait until I finish it. Otherwise you may want to:
+To use YSL Forth:
 
 1. Install YSL_, its host language;
 2. Call ``ysl core.ysl`` in command line;
@@ -27,12 +28,12 @@ Currently there are two files: ``core.ysl`` and ``kernel.fs``. The first one is
 the main YSL program that sets up the Forth environment and interpreter and then
 reads and interprets the second one to declare more complex and higher-level
 words. It's efficient to put a word definition in ``core.ysl``, but it's more
-convenient to put it in ``kernel.fs``. At the moment ``core.ysl`` is capable of
-interpreting most defintion words including ``:`` and ``code``, so ``kernel.fs``
-can contain ``code`` words.
+convenient to put them in ``kernel.fs``. At the moment ``core.ysl`` is capable
+of interpreting the basic defintion words including ``:`` and ``code``,
+so ``kernel.fs`` can contain ``code`` words with YSL bodies.
 
-Some random words like ``*``, ``+`` and ``,`` are also implemented, and the repl
-works, but it's not useful unless you define more ``code`` words.
+Many words are already implemented, including stack shuffling, control flow and
+parsing/defining, but some areas (notably maths) are still lacking.
 
 
 -------------------

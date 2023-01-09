@@ -100,23 +100,23 @@ goto *quit
 
 # Basic Forth actions
 next:
-    print "ToS: "
-    print $t
-    print " size: "
-    size d-stack
-    var w f return
-    print $w
-    print " IP: "
-    print $ip
-    print " Rdepth: "
-    size r-stack
-    var x f return
-    print $x
-    print " RP: "
-    print $rp
-    print " R: "
-    var x f r-stack $rp
-    println $x
+#   print "ToS: "
+#   print $t
+#   print " size: "
+#   size d-stack
+#   var w f return
+#   print $w
+#   print " IP: "
+#   print $ip
+#   print " Rdepth: "
+#   size r-stack
+#   var x f return
+#   print $x
+#   print " RP: "
+#   print $rp
+#   print " R: "
+#   var x f r-stack $rp
+#   println $x
 
     var w f mem $ip
     var ip + 1
