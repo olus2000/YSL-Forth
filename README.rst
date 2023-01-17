@@ -17,7 +17,16 @@ To use YSL Forth:
 
 1. Install YSL_, its host language;
 2. Call ``ysl core.ysl`` in command line;
-3. You should be greeted with the magic number 2137. You can now write Forth!
+3. You should be greeted with the "Kernel loaded." message. You can now write
+   Forth!
+
+To run tests:
+
+1. Run YSL Forth;
+2. Call ``$ 'testing.fs' included`` to load the testing tools;
+3. Call ``$ 'kernel-test.fs' included`` to run the tests for kernel and core;
+4. You should see some messages about texts that were expected to fail. This
+   will be indicated in test names.
 
 
 ----------------------

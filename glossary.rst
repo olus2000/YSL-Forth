@@ -28,6 +28,11 @@
 ``enter-action`` : ( -- x ) : YSL
     *x* is the YSL address of the action responsible for entering definitions.
 
+``state`` : ( -- addr ) : YSL
+    *addr* is the address of the interpreter state variable. Zero is
+    interpretation state, -1 is compilation state. Setting it to any nonzero
+    value will result in a value of -1.
+
 
 --------------------------------------------------------------------------------
                                 Stack shuffling
@@ -51,15 +56,33 @@
 ``depth`` : ( -- n ) : standard
     Push the number of items on the stack before executing *depth*.
 
-``>r`` : ( x -- ) ( R: -- x ) : standard
-    Put the top value from the data stack on the return stack.
+``>h`` : ( x -- ) ( H: -- x ) : YSL
+    Put the top value from the data stack on the helper stack.
 
-``r>`` : ( -- x ) ( R: x -- ) : standard
-    Put the top value from the return stack on the data stack.
+``h>`` : ( -- x ) ( H: x -- ) : YSL
+    Put the top value from the helper stack on the data stack.
+
+``h@`` : ( -- x ) ( H: x -- x ) : YSL
+    Copy the top value from the helper stack on the data stack.
+
+``>r`` : ( x -- ) ( R: -- x ) : YSL
+    Put the top value from the data stack on the return stack. Explicit use of
+    the return stack is discouraged. Consider using Combinators_ or helper stack
+    instead.
+
+``r>`` : ( -- x ) ( R: x -- ) : YSL
+    Put the top value from the return stack on the data stack. Explicit use of
+    the return stack is discouraged. Consider using Combinators_ or helper stack
+    instead.
+
+``r@`` : ( -- x ) ( R: x -- x ) : YSL
+    Copy the top value from the return stack on the data stack. Explicit use of
+    the return stack is discouraged. Consider using Combinators_ or helper stack
+    instead.
 
 
 --------------------------------------------------------------------------------
-                                     Maths
+                                Maths and logic
 --------------------------------------------------------------------------------
 
 ``+`` : ( n n -- n ) : standard
@@ -71,8 +94,26 @@
 ``*`` : ( n n -- n ) : standard
     Multiply top two values from the stack.
 
+``true`` : ( -- -1 ) : standard
+    Push the canonical true value to the stack.
+
+``false`` : ( -- 0 ) : standard
+    Push the canonical false value to the stack.
+
 ``0=`` : ( n -- ? ) : standard
     Return -1 if *n* is zero and 0 otherwise.
+
+``=`` : ( a b -- ? ) : standard
+    Return -1 if *a* and *b* are equal in value and 0 otherwise.
+
+``>`` : ( a b -- ? ) : standard
+    Return -1 if *a* is bigger than *b* and 0 otherwise.
+
+``<`` : ( a b -- ? ) : standard
+    Return -1 if *a* is smaller than *b* and 0 otherwise.
+
+``and`` : ( a? b? -- c? ) : standard
+    Return -1 if both *a?* and *b?* are nonzero and *0* otherwise.
 
 
 --------------------------------------------------------------------------------
@@ -99,13 +140,17 @@
 ``postpone`` : ( "<spaces>name<space>" -- ) : immediate : standard
     Compile the compilation semantics of the word corresponding to *name*.
 
-``$`` : ( "<spaces><char>ccc<char>" -- ) comp: ( -- addr n ) : immediate : YSL
+``$`` : ( "<spaces><char>ccc<char>" -- addr n ) : immediate : YSL
     Parse a string between two delimiting characters. *char* can be any
     character not present in the string. If in compilation state compile the
     string along with code that pushes its address and length to the stack.
     Otherwise save the string in a temporary buffer and push its address and
     length on the stack. It may be invalidated by subsequent use of temporary
     buffers.
+
+``parse-string`` : ( "<spaces><char>ccc<char>" -- addr n ) : YSL
+    Parse a string between two delimiting characters. Push address in the
+    input buffer and length of the parsed string on the stack.
 
 
 --------------------------------------------------------------------------------
@@ -225,6 +270,21 @@
 ``until`` : ( A.. pred:{ A.. -- B.. ? } body:{ B.. -- A.. } -- B.. ) : YSL
     Execute *pred*. Consume *?* and if it's zero execute *body* and repeat.
 
+``times`` : ( A.. n xt:{ A.. -- A.. } -- A.. ) : YSL
+    Execute *xt* *n* times. Set ``i^`` and ``times.bound`` accordingly for each
+    iteration. Restore previous ``i^`` and ``times.bound`` afterwards. *n* lower
+    than zero results in no iteration.
+
+``times.bound`` : ( -- addr ) : YSL
+    Holds the initial value of the ``times`` iteration loop.
+
+``i^`` : ( -- addr ) : YSL
+    Holds the ``times`` iterator. Counts down from ``times.bound``.
+
+``i`` : ( -- n ) : YSL
+    Push the number of iteration on the stack. Starts from zero and counts
+    towards ``times.bound``.
+
 
 --------------------------------------------------------------------------------
                                  Memory access
@@ -241,8 +301,16 @@
     Set the value in memory at *addr* to *x*. Negative addresses can be memory
     mapped. Some portions of memory are read-only and writing them is ignored.
 
+``!+`` : ( x addr -- ) : YSL
+    Add the value of *x* to memory at *addr*.
+
 ``,`` : ( n -- ) : standard
     Append *n* to the main memory block.
+
+``next-tmp-buffer`` : ( -- addr ) : YSL
+    Push the addres of the next tmp buffer. Its previous contents are
+    invalidated, and the buffer can serve as a random access storage for local
+    purposes. It can be invalidated by use of tmp buffer words.
 
 
 --------------------------------------------------------------------------------
@@ -250,12 +318,35 @@
 --------------------------------------------------------------------------------
 
 ``.`` : ( n -- ) : standard
-    Display *n* in decimal (TODO: base dependent) with a trailing space.
+    Print *n* in decimal (TODO: base dependent) with a trailing space.
+
+``emit`` : ( c -- ) : standard
+    Print character *c*.
+
+``nl``/``cr`` : ( -- ) : YSL/standard
+    Print newline.
+
+``type`` : ( addr n -- ) : standard
+    Print a counted string.
+
+``say`` : ( "string" -- ) : immediate : YSL
+    In interpretation state parse and print *string*. In compilation state
+    compile semantics that print *string*.
 
 
 --------------------------------------------------------------------------------
                                      Double
 --------------------------------------------------------------------------------
+
+``2drop`` : ( a b -- ) : standard
+    Drop two items from the stack.
+
+``2dup`` : ( a b -- a b a b ) : standard
+    Duplicate two items on the stack.
+
+``2swap`` : ( a b c d -- c d a b ) : standard
+    Swap two pairs of items on the stack.
+
 
 --------------------------------------------------------------------------------
                                   File access
@@ -295,3 +386,70 @@
 ``nop`` : ( -- ) : immediate : YSL
     Turn off tail call optimisation for this point. Use between a word that
     accesses the return stack and a returning word.
+
+
+--------------------------------------------------------------------------------
+                                    Testing
+--------------------------------------------------------------------------------
+
+This word set is defined in testing.fs_ and implements a simple testing toolset
+along with some helper words used in the toolset definition.
+
+
+Main words
+----------
+
+``t{`` : ( -- ) ( test-depth: depth ) : YSL
+    Open the "actual" part of the testcase.
+
+``->`` : ( x*i -- ) ( H: -- x*i ) ( test-quantity: i ) : YSL
+    Close the "actual" part of the testcase and save the results. Open the
+    "expected" part of the testcase.
+
+    Tyical usage::
+
+        t{ 1 dup -> 1 1 }t 'SAMPLE TEST'
+
+``-$>`` : ( addr n "string" -- string ) ( H: -- c*n ) ( test-quantity: n ) : YSL
+    Close the "actual" part of the testcase and interpret the results as
+    a counted string. Parse a string. If there are more than two items in the
+    "actual" part or *n* is different than length of *string* save the results
+    of the "actual" part and leave the parsed string descriptor on stack.
+    Otherwise save the contents if the counted string and put the contents of
+    the parsed *string* on the stack.
+
+    Typical usage::
+
+        t{ $ !string! -$> |string| }t 'STRING TEST'
+
+``}t`` : ( x*i "string" -- ) ( H: x*i -- ) : YSL
+    Close the "expected" part of the test. *string* will be used as the test
+    name for failure reporting. If there is a different number of items in the
+    "expected" and "actual" part they differ output an adequate message along
+    with both sets of items.
+
+``forgetter`` : ( "word" -- ) word: ( -- ) : YSL
+    Define *word* with the following semantics: remove dictionary definitions
+    and memory allocated in the main memory block since the definition of *word*
+    including the definition itslef. Allow reuse of YSL lines allocated since
+    the definition of *word*.
+
+
+Variables
+---------
+
+``test-depth`` : ( -- addr ) : YSL
+    Holds the stack depth at which the testcase started.
+
+``test-quantity`` : ( -- addr ) : YSL
+    Holds the amount of items in the "actual" part of the test.
+
+
+Helper words
+------------
+
+``pick`` : ( a x*n n -- x*n a ) : standard
+    Move the value from below *n* values on the stack to the top.
+
+``push-string`` : ( addr n -- c*n )
+    Push *n* cells starting from *addr* to the stack.

@@ -13,7 +13,8 @@ var d-stack = ""
 var dp = -1
 var r-stack = ""
 var rp = -1
-
+var h-stack = ""
+var hp = -1
 
 # Input buffer
 var input-buffer = ""
@@ -51,6 +52,8 @@ var tco-size-offset = -1
 var tco-size-offset + $>in-offset
 var tmp-buffers-offset = $tco-size-offset
 var tmp-buffers-offset - $total-tmp-buffers-size
+var state-offset = -1
+var state-offset + $tmp-buffers-offset
 
 # Dictionary
 string_array n  "." "bye" "," "[" "]" ":" ";" "code" "compile" "exit"
@@ -215,11 +218,16 @@ _@:
         return $>in
     .tmp-buffers:
         lt $x $tmp-buffers-offset
-        goto_if *.out-of-bounds
+        goto_if *.state
 #       println "It's tmp buffers"
         var x - $tmp-buffers-offset
         var x f tmp-buffers $x
         return $x
+    .state:
+        lt $x $state-offset
+        goto_if *.out-of-bounds
+#       println "It's state variable"
+        return $state
     # Default out of bounds @
     .out-of-bounds:
 #       println "It's out of bounds"
@@ -351,7 +359,7 @@ _find:
     goto *next
 
 ]:
-    var state = 1
+    var state = -1
     goto *next
 
 
@@ -372,7 +380,7 @@ colon:
     gosub *define
     var mem a *enter
     var mp + 1
-    var state = 1
+    var state = -1
     var dictionary-pointer - 1
     var tco-size = 0
     goto *next
@@ -564,7 +572,7 @@ quit:
         gosub *.compile
         var x = $tmp
         gosub *.compile
-        var tco-size = 2
+        var tco-size = 0
         goto *quit
     .push-number:
         var d-stack a $t
@@ -579,7 +587,7 @@ quit:
         gosub *execute-Forth-word-from-YSL
         goto *quit
     .actually-refill:
-        cmp $state 1
+        cmp $state -1
         goto_if *.no-ok
         println "ok."
         .no-ok:

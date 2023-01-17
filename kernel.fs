@@ -8,7 +8,7 @@ code drop # ( x -- )
 ;
 
 
-code parse # ( c "ccc<char>" -- addr u )
+code parse # ( char "ccc<char>" -- addr u )
 parse:
     var delim = $t
     var addr = $source
@@ -31,6 +31,7 @@ parse:
         goto *.loop
     .end:
     var t - $addr
+    var t - 1
     goto *next
 ;
 
@@ -39,12 +40,6 @@ code immediate # ( -- )
     var immediates s $dictionary-pointer -1
     goto *next
 ;
-
-
-code nop # ( -- )
-    var tco-size = 0
-    goto *next
-; immediate
 
 
 : ( ') parse drop drop ; immediate
@@ -105,6 +100,29 @@ dict-dump:
 ;
 
 
+code .s # ( -- )
+stack-dump:
+    lt $dp 0
+    goto_if *.empty
+    var x = 1
+    print "Stack: "
+    .loop:
+        gt $x $dp
+        goto_if *.end
+        var w f d-stack $x
+        print $w
+        print " "
+        var x + 1
+        goto *.loop
+    .end:
+        println $t
+        goto *next
+    .empty:
+        println "Stack:"
+        goto *next
+;
+
+
 ( --- System variables --- )
 
 code ysl-here # ( -- x )
@@ -136,6 +154,23 @@ code tco-size # ( -- addr )
     var d-stack a $t
     var dp + 1
     var t = $tco-size-offset
+    goto *next
+;
+
+
+code dictionary-size # ( -- n )
+    var d-stack a $t
+    var dp + 1
+    var t = $dictionary-pointer
+    var t + 1
+    goto *next
+;
+
+
+code state # ( -- ? )
+    var d-stack a $t
+    var dp + 1
+    var t = $state-offset
     goto *next
 ;
 
@@ -198,6 +233,40 @@ code r> # ( -- x ) ( R: x -- )
 ;
 
 
+code r@ # ( -- x ) ( R: x -- x )
+    var d-stack a $t
+    var dp + 1
+    var t f r-stack $rp
+    goto *next
+;
+
+
+code >h # ( x -- ) ( H: -- x )
+    var h-stack a $t
+    var hp + 1
+    var t f d-stack $dp
+    var d-stack r $dp 1
+    var dp - 1
+    goto *next
+;
+
+
+code h> # ( -- x ) ( H: x -- )
+    var d-stack a $t
+    var dp + 1
+    var t f h-stack $hp
+    var h-stack r $hp 1
+    var hp - 1
+    goto *next
+;
+
+
+code h@ # ( -- x ) ( H: x -- x )
+    var d-stack a $t
+    var dp + 1
+    var t f h-stack $hp
+    goto *next
+;
 
 
 code depth # ( -- n )
@@ -236,16 +305,50 @@ code ! # ( x addr -- )
     goto *.out-of-bounds
 .tco-size:
     lt $t $tco-size-offset
-    goto_if *.out-of-bounds
+    goto_if *.tmp-buffers
     gt $t $tco-size-offset
     goto_if *.out-of-bounds
     var tco-size f d-stack $dp
+    goto *.out-of-bounds
+.tmp-buffers:
+    lt $t $tmp-buffers-offset
+    goto_if *.state
+    var t - $tmp-buffers-offset
+    gt $t $total-tmp-buffers-size
+    goto_if *.out-of-bounds
+    var x f d-stack $dp
+    var tmp-buffers s $t $x
+    goto *.out-of-bounds
+.state:
+    lt $t $state-offset
+    goto_if *.out-of-bounds
+    gt $t $state-offset
+    goto_if *.out-of-bounds
+    var state f d-stack $dp
+    cmp $state 0
+    goto_if *.out-of-bounds
+    var state = -1
     goto *.out-of-bounds
 .out-of-bounds:
     var dp - 1
     var t f d-stack $dp
     var d-stack r $dp 2
     var dp - 1
+    goto *next
+;
+
+
+\ ``!+`` is defined in `Maths and logic`_
+
+
+code next-tmp-buffer # ( -- addr )
+    var d-stack a $t
+    var dp + 1
+    var t = $next-tmp-buffer
+    var t * $tmp-buffer-size
+    var t + $tmp-buffers-offset
+    var next-tmp-buffer + 1
+    var next-tmp-buffer % $tmp-buffers-num
     goto *next
 ;
 
@@ -268,6 +371,21 @@ code ' # ( "<spaces>word<space>" -- xt )
     var dp + 1
     var t = $x
     goto *next
+;
+
+
+code parse-string # ( "<spaces><delim>ccc<delim>" -- addr n )
+parse-string:
+    gosub *parse-whitespace
+    var addr = $source
+    var addr + $>in
+    var d-stack a $t
+    var dp + 1
+    var x = $addr
+    gosub *_@
+    var t f return
+    var >in + 1
+    goto *parse
 ;
 
 
@@ -403,7 +521,7 @@ code literal # ( x -- )
     var t f d-stack $dp
     var d-stack r $dp 1
     var dp - 1
-    var tco-size = 2
+    var tco-size = 0
     goto *next
 ; immediate
 
@@ -440,7 +558,6 @@ code create # ( "<spaces>word<space>" -- )
     ysl-here postpone literal
     postpone latest
     postpone !
-    1 tco-size !
     postpone ;
     compile
 ; immediate
@@ -455,7 +572,13 @@ code create # ( "<spaces>word<space>" -- )
 ;
 
 
-( --- Maths --- )
+code nop # ( -- )
+    var tco-size = 0
+    goto *next
+; immediate
+
+
+( --- Maths and logic --- )
 
 code + # ( n n -- n )
     var x f d-stack $dp
@@ -491,14 +614,91 @@ code * # ( n n -- n )
 ;
 
 
+: !+ ( x addr -- )
+  swap over @ + swap ! ;
+
+
+ 0 constant false
+-1 constant true
+
+
 code 0= # ( n -- ? )
     cmp 0 $t
     goto_if *.true
-    var t = 1
+    var t = 0
+    goto *next
     .true:
-    var t - 1
+    var t = -1
     goto *next
 ;
+
+
+code = # ( a b -- ? )
+    var x f d-stack $dp
+    var d-stack r $dp 1
+    var dp - 1
+    cmp $x $t
+    goto_if *.true
+    var t = 0
+    goto *next
+    .true:
+    var t = -1
+    goto *next
+;
+
+
+code > # ( a b -- ? )
+    var x f d-stack $dp
+    var d-stack r $dp 1
+    var dp - 1
+    gt $x $t
+    goto_if *.true
+    var t = 0
+    goto *next
+    .true:
+    var t = -1
+    goto *next
+; 
+
+
+code < # ( a b -- ? )
+    var x f d-stack $dp
+    var d-stack r $dp 1
+    var dp - 1
+    lt $x $t
+    goto_if *.true
+    var t = 0
+    goto *next
+    .true:
+    var t = -1
+    goto *next
+; 
+
+
+code and # ( ? ? -- ? )
+and:
+    var x f d-stack $dp
+    var d-stack r $dp 1
+    var dp - 1
+    cmp $t 0
+    goto_if *next
+    cmp $x 0
+    goto_if *.false
+    var t = -1
+    goto *next
+    .false:
+    var t = 0
+    goto *next
+;
+
+
+( --- Double --- )
+
+: 2dup ( a b -- a b a b ) over over ;
+
+: 2drop ( a b -- ) drop drop ;
+
+: 2swap ( a b c d -- c d a b ) rot >h rot h> ;
 
 
 ( --- Combinators --- )
@@ -603,13 +803,54 @@ code when # ( A.. ? { A.. -- B.. } -- B.. | A.. )
 : while ( A.. { A.. -- B.. ? } { B.. -- A.. } -- B.. )
   swap dup >r dip r> rot
   { swap dup >r dip r> recurse }
-  { drop drop } if ;
+  [ ' 2drop ] literal if ;
 
 
 : until ( A.. { A.. -- B.. ? } { B.. -- A.. } -- B.. )
   swap dup >r dip r> rot
-  { drop drop }
+  [ ' 2drop ] literal
   { swap dup >r dip r> recurse } if ;
+
+
+variable times.bound
+variable i^
+
+: times ( A.. n { A.. -- A.. } -- A.. )
+  swap dup 1 <
+  [ ' 2drop ] literal
+  { times.bound @ >r i^ @ >r
+    dup times.bound ! i^ !
+    { dup dip i^ @ 1 - dup i^ ! } loop
+    drop r> i^ ! r> times.bound ! } if ;
+
+
+: i ( -- n )
+  times.bound @ i^ @ - ;
+    
+
+( --- I/O --- )
+
+code emit # ( c -- )
+    print !t
+    var t f d-stack $dp
+    var d-stack r $dp 1
+    var dp - 1
+    goto *next
+;
+
+
+: cr ( -- ) 10 emit ;
+: nl ( -- ) 10 emit ;
+
+
+: type ( addr n -- )
+  { dup @ emit 1 + } times drop ;
+
+
+: say ( "string" -- )
+  state @
+  { postpone $ postpone type }
+  { parse-string type } if ; immediate
 
 
 ( --- File access --- )
@@ -660,4 +901,4 @@ drop-file:
 
 ( --- Confirmation message --- )
 
-2137 .
+say 'Kernel loaded.' nl
